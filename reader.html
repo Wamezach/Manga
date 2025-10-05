@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Manga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+</head>
+<body class="bg-black">
+    <header class="bg-base-100 shadow-lg sticky top-0 z-50">
+        <div class="navbar container mx-auto justify-between">
+            <a href="index.html" class="btn btn-ghost text-xl">Back to Home</a>
+            <h1 id="chapter-title" class="text-lg font-bold truncate">Loading...</h1>
+        </div>
+    </header>
+
+    <main id="reader-content" class="flex flex-col items-center">
+        <!-- Loading Spinner -->
+        <div class="flex justify-center mt-20"><span class="loading loading-spinner loading-lg text-primary"></span></div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const readerContent = document.getElementById('reader-content');
+            const chapterTitle = document.getElementById('chapter-title');
+            const chapterId = new URLSearchParams(window.location.search).get('chapterId');
+
+            if (!chapterId) {
+                readerContent.innerHTML = '<p class="text-center text-error">No chapter ID provided.</p>';
+                return;
+            }
+
+            const apiUrl = `https://api.consumet.org/manga/mangadex/read?chapterId=${chapterId}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error('Failed to load chapter pages');
+                const chapterData = await response.json();
+
+                document.title = `Reading...`;
+                readerContent.innerHTML = ''; // Clear spinner
+
+                chapterData.forEach(page => {
+                    const img = document.createElement('img');
+                    img.src = page.img;
+                    img.alt = `Page ${page.page}`;
+                    img.className = 'w-full md:w-3/4 lg:w-1/2';
+                    readerContent.appendChild(img);
+                });
+
+            } catch (error) {
+                readerContent.innerHTML = '<p class="text-center text-error">Could not load this chapter.</p>';
+                console.error('Fetch error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
