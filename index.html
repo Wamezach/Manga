@@ -24,24 +24,26 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const mangaGrid = document.getElementById('manga-grid');
-            // FIXED: Changed http to https
-            const apiUrl = 'https://api.consumet.org/manga/mangadex/popular';
+            // Using YOUR personal, working API!
+            const apiUrl = 'https://my-manga-api.vercel.app/api/popular';
 
             try {
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
                 mangaGrid.innerHTML = '';
-                data.results.forEach(manga => {
-                    const mangaLink = `
-                        <a href="manga.html?id=${manga.id}" class="card bg-base-100 shadow-xl hover:scale-105 transition-transform">
+
+                data.forEach(manga => {
+                    // We will fix the links in the next step, for now let's just display the images.
+                    const mangaCard = `
+                        <div class="card bg-base-100 shadow-xl">
                             <figure><img src="${manga.image}" alt="${manga.title}" class="h-64 w-full object-cover"/></figure>
                             <div class="card-body p-4"><h2 class="card-title text-md truncate" title="${manga.title}">${manga.title}</h2></div>
-                        </a>`;
-                    mangaGrid.innerHTML += mangaLink;
+                        </div>`;
+                    mangaGrid.innerHTML += mangaCard;
                 });
             } catch (error) {
-                mangaGrid.innerHTML = `<p class="col-span-full text-center text-error">Failed to load manga. The API might be down.</p>`;
+                mangaGrid.innerHTML = `<p class="col-span-full text-center text-error">Failed to load manga from your personal API.</p>`;
                 console.error('Fetch error:', error);
             }
         });
