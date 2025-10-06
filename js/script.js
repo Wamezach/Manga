@@ -28,7 +28,8 @@
   window.getReadingHistoryForManga = (mangaId) => window.readingHistory[mangaId] || [];
 })();
 
-const API_URL = 'https://my-manga-api.vercel.app/api'; // Change to your backend API!
+// This is your Vercel API base, NOT a relative path
+const API_URL = 'https://my-manga-api.vercel.app/api';
 let currentMangaId = null, cameFromSearch = false, currentChapterList = [], currentChapterIndex = -1;
 const mainView = document.getElementById('main-view'), detailView = document.getElementById('detail-view'), readerView = document.getElementById('reader-view');
 const mainLoader = document.getElementById('main-loader'), detailLoader = document.getElementById('detail-loader'), readerLoader = document.getElementById('reader-loader');
@@ -209,6 +210,7 @@ function createCarousel(title, id, mangaList) {
   }).mount();
 }
 function renderMangaGrid(container, mangaList) {
+  // Always use imgUrl as sent by backend, do not change extension
   const getImgUrl = (manga) => manga.imgUrl || manga.coverImage || '';
   container.innerHTML = !mangaList || mangaList.length === 0 ? '<p>No manga found.</p>' : mangaList.map(manga => `
     <div class="manga-card" onclick="cameFromSearch=true; showDetailView('${manga.id}')">
@@ -220,6 +222,7 @@ function renderMangaGrid(container, mangaList) {
 function renderMangaDetails(manga) {
   currentChapterList = manga.chapters;
   const readChapters = getReadingHistoryForManga(manga.id);
+  // Use manga.coverImage as provided by API (should be proxied Vercel URL)
   detailContent.innerHTML = `
     <div class="detail-header">
       <div class="detail-cover"><img src="${manga.coverImage}" alt="${manga.title}"></div>
