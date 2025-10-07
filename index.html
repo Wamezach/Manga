@@ -14,6 +14,90 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@glidejs/glide/dist/css/glide.core.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@glidejs/glide/dist/css/glide.theme.min.css">
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .chapter-item-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .chapter-label {
+      font-weight: bold;
+      margin-right: 8px;
+      min-width: 100px;
+      display: inline-block;
+    }
+    .chapter-variant-btn {
+      background: #23293a;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 5px;
+      margin: 0 4px;
+      padding: 6px 10px;
+      font-size: 0.95em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .chapter-variant-btn:hover {
+      background: #1e293b;
+      color: #ffe066;
+      border-color: #ffe066;
+    }
+    .variant-label {
+      margin-left: 4px;
+      font-size: 0.85em;
+      color: #ffe066;
+      font-weight: bold;
+    }
+    .chapter-no-english {
+      color: #888;
+      margin-left: 10px;
+      font-size: 0.95em;
+    }
+    .lang-modal-backdrop {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .lang-modal {
+      background: #23293a;
+      padding: 24px 32px;
+      border-radius: 16px;
+      box-shadow: 0 2px 16px #000;
+      min-width: 280px;
+      max-width: 95vw;
+    }
+    .lang-modal h3 {
+      margin-top: 0;
+      color: #ffe066;
+      font-size: 1.2em;
+    }
+    .lang-modal .lang-option {
+      padding: 12px 18px;
+      font-size: 1.1em;
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 4px 6px;
+    }
+    .lang-modal .lang-option:hover {
+      background: #222;
+      border-color: #ffe066;
+      color: #ffe066;
+    }
+    .close-lang-modal {
+      background: #23293a;
+      color: #ffe066;
+      border: 1px solid #444;
+      border-radius: 8px;
+      margin-top: 16px;
+      padding: 7px 20px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
   <div id="welcome-overlay">

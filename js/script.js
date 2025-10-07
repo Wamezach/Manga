@@ -10,7 +10,7 @@
   document.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
-// Adsterra and Reading History logic
+// Adsterra and Reading History logic with language tracking
 (function() {
   const adLink1 = 'https://www.revenuecpmgate.com/v4pnxk7v0?key=7715fad3d3bbeb7b52a1113af43948a5';
   const adLink2 = 'https://www.revenuecpmgate.com/wbuiun27x?key=b234ea9fe88ce19485fb3f94bdfe1478';
@@ -18,19 +18,23 @@
     window.open(new Date().getDate() % 2 === 0 ? adLink1 : adLink2, '_blank');
   };
   window.readingHistory = JSON.parse(localStorage.getItem('readingHistory')) || {};
-  window.markChapterAsRead = (mangaId, chapterId) => {
-    if (!window.readingHistory[mangaId]) window.readingHistory[mangaId] = [];
-    if (!window.readingHistory[mangaId].includes(chapterId)) {
-      window.readingHistory[mangaId].push(chapterId);
+  window.markChapterAsRead = (mangaId, chapterId, lang, flag) => {
+    if (!window.readingHistory[mangaId]) window.readingHistory[mangaId] = { chapters: [], language: lang, flag: flag };
+    if (!window.readingHistory[mangaId].chapters.includes(chapterId)) {
+      window.readingHistory[mangaId].chapters.push(chapterId);
+      window.readingHistory[mangaId].language = lang;
+      window.readingHistory[mangaId].flag = flag;
       localStorage.setItem('readingHistory', JSON.stringify(window.readingHistory));
     }
   };
-  window.getReadingHistoryForManga = (mangaId) => window.readingHistory[mangaId] || [];
+  window.getReadingHistoryForManga = (mangaId) => window.readingHistory[mangaId]?.chapters || [];
+  window.getReadingLanguageForManga = (mangaId) => window.readingHistory[mangaId]?.language || '';
+  window.getReadingFlagForManga = (mangaId) => window.readingHistory[mangaId]?.flag || '';
 })();
 
-// This is your Vercel API base, NOT a relative path
 const API_URL = 'https://my-manga-api.vercel.app/api';
 let currentMangaId = null, cameFromSearch = false, currentChapterList = [], currentChapterIndex = -1;
+let selectedLanguage = null, selectedFlag = null;
 const mainView = document.getElementById('main-view'), detailView = document.getElementById('detail-view'), readerView = document.getElementById('reader-view');
 const mainLoader = document.getElementById('main-loader'), detailLoader = document.getElementById('detail-loader'), readerLoader = document.getElementById('reader-loader');
 const listsContainer = document.getElementById('lists-container'), detailContent = document.getElementById('detail-content'), chapterImages = document.getElementById('chapter-images');
@@ -60,6 +64,7 @@ function showMainView() {
   homeBtn.classList.add('active');
   myLisBtn.classList.remove('active');
   fetchHomepageLists();
+  chapterImages.innerHTML = '';
 }
 function showSearchResults(query) {
   switchView('main');
@@ -70,17 +75,24 @@ function showSearchResults(query) {
     gridTitle.textContent = `Search Results for "${query}"`;
     fetchSearchResults(query);
   }
+  chapterImages.innerHTML = '';
 }
 function showDetailView(mangaId) {
   if (mangaId) currentMangaId = mangaId;
+  currentChapterList = [];
+  currentChapterIndex = -1;
+  chapterImages.innerHTML = '';
+  readerLoader.classList.add('hidden');
   switchView('detail');
   if (mangaId) fetchMangaDetails(mangaId);
 }
 function showReaderView(chapterId, index) {
   if (index !== undefined) currentChapterIndex = index;
   switchView('reader');
+  chapterImages.innerHTML = '';
+  readerLoader.classList.remove('hidden');
   document.documentElement.scrollTop = 0;
-  markChapterAsRead(currentMangaId, chapterId);
+  markChapterAsRead(currentMangaId, chapterId, selectedLanguage, selectedFlag);
   if (window.triggerAd) window.triggerAd();
   fetchChapterPages(chapterId);
 }
@@ -92,8 +104,10 @@ function showMyList() {
   homeBtn.classList.remove('active');
   myLisBtn.classList.add('active');
   fetchMyList();
+  chapterImages.innerHTML = '';
 }
 function goToNextChapter() {
+  if (!selectedLanguage) { nextChapterBtn.disabled = true; return; }
   if (currentChapterIndex < currentChapterList.length - 1) {
     currentChapterIndex++;
     const nextChapter = currentChapterList[currentChapterIndex];
@@ -101,6 +115,7 @@ function goToNextChapter() {
   }
 }
 function goToPrevChapter() {
+  if (!selectedLanguage) { prevChapterBtn.disabled = true; return; }
   if (currentChapterIndex > 0) {
     currentChapterIndex--;
     const prevChapter = currentChapterList[currentChapterIndex];
@@ -108,8 +123,8 @@ function goToPrevChapter() {
   }
 }
 function updateChapterNavButtons() {
-  prevChapterBtn.disabled = currentChapterIndex <= 0;
-  nextChapterBtn.disabled = currentChapterIndex >= currentChapterList.length - 1;
+  prevChapterBtn.disabled = !selectedLanguage || currentChapterIndex <= 0;
+  nextChapterBtn.disabled = !selectedLanguage || currentChapterList.length === 0 || currentChapterIndex >= currentChapterList.length - 1;
 }
 async function fetchHomepageLists() {
   mainLoader.classList.remove('hidden');
@@ -117,9 +132,14 @@ async function fetchHomepageLists() {
   try {
     const res = await fetch(`${API_URL}/lists`);
     const lists = await res.json();
-    createCarousel('Trending Now', 'trending', lists.trending);
-    createCarousel('Latest Updates', 'latest', lists.latest);
-    createCarousel('Newly Added', 'newly-added', lists.newlyAdded);
+
+    if (lists.featured) createCarousel('Featured', 'featured', lists.featured);
+    if (lists.seasonal) createCarousel('Seasonal: Summer 2025', 'seasonal', lists.seasonal);
+    if (lists['self-published']) createCarousel('Self-Published', 'self-published', lists['self-published']);
+    if (lists.recommended) createCarousel('Recommended', 'recommended', lists.recommended);
+    if (lists.latest) createCarousel('Latest Updates', 'latest', lists.latest);
+    if (lists.newlyAdded) createCarousel('Newly Added', 'newly-added', lists.newlyAdded);
+
   } catch (e) {
     listsContainer.innerHTML = `<p>Error loading lists: ${e.message}</p>`;
   } finally {
@@ -143,7 +163,9 @@ async function fetchMangaDetails(mangaId) {
   detailContent.innerHTML = '';
   try {
     const res = await fetch(`${API_URL}/manga/${mangaId}`);
-    renderMangaDetails(await res.json());
+    const manga = await res.json();
+    window.__lastMangaDetails = manga;
+    renderMangaDetails(manga);
   } catch (e) {
     detailContent.innerHTML = `<p>Error loading details: ${e.message}</p>`;
   } finally {
@@ -157,7 +179,9 @@ async function fetchChapterPages(chapterId) {
   try {
     const res = await fetch(`${API_URL}/read/${chapterId}`);
     if (!res.ok) throw new Error((await res.json()).message);
-    renderChapterPages((await res.json()).imageUrls);
+    // Progressive/lazy loading for fast perceived speed
+    const { imageUrls } = await res.json();
+    renderChapterPages(imageUrls);
   } catch (e) {
     chapterImages.innerHTML = `<p>Error loading chapter: ${e.message}</p>`;
   } finally {
@@ -182,6 +206,7 @@ async function fetchMyList() {
   }
 }
 function createCarousel(title, id, mangaList) {
+  if (!mangaList || mangaList.length === 0) return;
   const section = document.createElement('div');
   section.className = 'list-section';
   section.innerHTML = `<h2>${title}</h2>
@@ -190,7 +215,7 @@ function createCarousel(title, id, mangaList) {
       <ul class="glide__slides">${mangaList.map(manga => `
         <li class="glide__slide">
           <div class="manga-card" onclick="showDetailView('${manga.id}')">
-            <div class="cover-image"><img src="${manga.imgUrl}" alt="${manga.title}" loading="lazy"></div>
+            <div class="cover-image"><img src="${manga.imgUrl || manga.coverImage || ''}" alt="${manga.title}" loading="lazy"></div>
             <div class="manga-info"><h3>${manga.title}</h3></div>
           </div>
         </li>
@@ -210,19 +235,84 @@ function createCarousel(title, id, mangaList) {
   }).mount();
 }
 function renderMangaGrid(container, mangaList) {
-  // Always use imgUrl as sent by backend, do not change extension
   const getImgUrl = (manga) => manga.imgUrl || manga.coverImage || '';
-  container.innerHTML = !mangaList || mangaList.length === 0 ? '<p>No manga found.</p>' : mangaList.map(manga => `
-    <div class="manga-card" onclick="cameFromSearch=true; showDetailView('${manga.id}')">
-      <div class="cover-image"><img src="${getImgUrl(manga)}" alt="${manga.title}" loading="lazy"></div>
-      <div class="manga-info"><h3>${manga.title}</h3></div>
-    </div>
-  `).join('');
+  container.innerHTML = !mangaList || mangaList.length === 0 ? '<p>No manga found.</p>' : mangaList.map(manga => {
+    const readLang = window.getReadingLanguageForManga(manga.id);
+    const readFlag = window.getReadingFlagForManga(manga.id);
+    return `
+      <div class="manga-card" onclick="cameFromSearch=true; showDetailView('${manga.id}')">
+        <div class="cover-image"><img src="${getImgUrl(manga).replace('.512.jpg', '.256.jpg')}" alt="${manga.title}" loading="lazy"></div>
+        <div class="manga-info">
+          <h3>${manga.title}</h3>
+          ${readLang ? `<div class="read-lang">Read in: <span style="font-weight:bold">${readFlag ? readFlag + ' ' : ''}${readLang.toUpperCase()}</span></div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
+
+function getLanguageStats(manga) {
+  const langMap = {};
+  manga.chapters.forEach(chap => {
+    chap.alternatives.forEach(alt => {
+      const lang = alt.translatedLanguage;
+      if (!langMap[lang]) langMap[lang] = { count: 0, flag: alt.flag, name: lang };
+      langMap[lang].count++;
+    });
+  });
+  return langMap;
+}
+
+function showLanguagePicker(manga, onPick) {
+  const langStats = getLanguageStats(manga);
+  const langs = Object.keys(langStats);
+  let html = `<div class="lang-modal-backdrop"><div class="lang-modal">
+      <h3>Choose a Language</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;">`;
+  langs.forEach(lang => {
+    html += `<button class="lang-option" data-lang="${lang}">
+      ${langStats[lang].flag ? langStats[lang].flag + " " : ""}${lang.toUpperCase()} <span style="color:#ffe066;">(${langStats[lang].count})</span>
+    </button>`;
+  });
+  html += `</div><button class="close-lang-modal" style="margin-top:18px;padding:8px 20px;">Cancel</button></div></div>`;
+  const modalDiv = document.createElement('div');
+  modalDiv.innerHTML = html;
+  document.body.appendChild(modalDiv);
+
+  modalDiv.querySelectorAll('.lang-option').forEach(btn => {
+    btn.onclick = () => {
+      const lang = btn.getAttribute('data-lang');
+      document.body.removeChild(modalDiv);
+      onPick(lang, langStats[lang].flag || "");
+    };
+  });
+  modalDiv.querySelector('.close-lang-modal').onclick = () => {
+    document.body.removeChild(modalDiv);
+  };
+}
+
+function buildLangChapterList(manga, lang) {
+  let chapters = [];
+  manga.chapters.forEach(chap => {
+    chap.alternatives.forEach(alt => {
+      if (alt.translatedLanguage === lang) {
+        chapters.push({ chapterId: alt.chapterId, chapterTitle: alt.chapterTitle, chapterNumber: chap.chapterNumber });
+      }
+    });
+  });
+  chapters.sort((a, b) => {
+    const na = parseFloat(a.chapterNumber);
+    const nb = parseFloat(b.chapterNumber);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    if (!isNaN(na)) return -1;
+    if (!isNaN(nb)) return 1;
+    return a.chapterNumber.localeCompare(b.chapterNumber);
+  });
+  return chapters;
+}
+
 function renderMangaDetails(manga) {
-  currentChapterList = manga.chapters;
-  const readChapters = getReadingHistoryForManga(manga.id);
-  // Use manga.coverImage as provided by API (should be proxied Vercel URL)
+  const langStats = getLanguageStats(manga);
   detailContent.innerHTML = `
     <div class="detail-header">
       <div class="detail-cover"><img src="${manga.coverImage}" alt="${manga.title}"></div>
@@ -232,19 +322,99 @@ function renderMangaDetails(manga) {
         <p><strong>Status:</strong> ${manga.status}</p>
         <div class="genres">${manga.genres.map(g => `<span>${g}</span>`).join('')}</div>
         <p>${manga.description}</p>
+        <div class="lang-selector" style="margin:12px 0 0 0;">
+          <strong>Available Languages:</strong>
+          ${Object.keys(langStats).map(lang => 
+            `<span style="margin-right:8px;">${langStats[lang].flag ? langStats[lang].flag + " " : ""}${lang.toUpperCase()} (${langStats[lang].count})</span>`
+          ).join('')}
+          <button id="choose-lang-btn" style="margin-left:20px;padding:4px 12px;">Read</button>
+        </div>
       </div>
     </div>
     <h2>Chapters</h2>
     <div class="chapter-list">
-      ${manga.chapters.length > 0 ? manga.chapters.map((c, index) => `
-        <div class="chapter-item ${readChapters.includes(c.chapterId) ? 'read' : ''}" onclick="showReaderView('${c.chapterId}', ${index})">${c.chapterTitle}</div>
-      `).join('') : '<p>No chapters found.</p>'}
+      ${
+        manga.chapters.length > 0
+        ? manga.chapters.map((chap, idx) => `
+          <div class="chapter-item-group">
+            <span class="chapter-label">Chapter ${chap.chapterNumber}:</span>
+            ${
+              chap.alternatives && chap.alternatives.length > 0
+              ? chap.alternatives.map((alt, altIdx) => `
+                <button class="chapter-variant-btn"
+                  data-chapter-id="${alt.chapterId}"
+                  data-chapter-lang="${alt.translatedLanguage}"
+                  data-chapter-flag="${alt.flag || ''}"
+                  data-chapter-number="${chap.chapterNumber}"
+                  title="${alt.country || ''} ${alt.translatedLanguage ? alt.translatedLanguage.toUpperCase() : ''}${alt.groupName ? ' • ' + alt.groupName : ''}">
+                  ${alt.flag ? alt.flag + ' ' : ''}${alt.translatedLanguage ? alt.translatedLanguage.toUpperCase() : ''}
+                </button>
+              `).join('')
+              : `<span class='chapter-no-english'>No variant</span>`
+            }
+          </div>
+        `).join('')
+        : '<p>No chapters found.</p>'
+      }
     </div>
   `;
+
+  // On "Read" button, show language picker before reading
+  const chooseLangBtn = detailContent.querySelector('#choose-lang-btn');
+  if (chooseLangBtn) {
+    chooseLangBtn.onclick = () => {
+      showLanguagePicker(manga, function(lang, flag) {
+        selectedLanguage = lang;
+        selectedFlag = flag;
+        const langChapters = buildLangChapterList(manga, lang);
+        if (langChapters.length > 0) {
+          currentChapterList = langChapters;
+          currentChapterIndex = 0;
+          showReaderView(langChapters[0].chapterId, 0);
+        } else {
+          alert('No chapters found in this language.');
+        }
+      });
+    };
+  }
+
+  const variantButtons = detailContent.querySelectorAll('.chapter-variant-btn');
+  variantButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const chapterId = btn.getAttribute('data-chapter-id');
+      const lang = btn.getAttribute('data-chapter-lang');
+      const flag = btn.getAttribute('data-chapter-flag');
+      selectedLanguage = lang;
+      selectedFlag = flag;
+      const mangaData = window.__lastMangaDetails;
+      const langChapters = buildLangChapterList(mangaData, lang);
+      currentChapterList = langChapters;
+      const idx = langChapters.findIndex(c => c.chapterId === chapterId);
+      currentChapterIndex = idx !== -1 ? idx : 0;
+      showReaderView(chapterId, currentChapterIndex);
+    });
+  });
+
+  window.__lastMangaDetails = manga;
 }
+
 function renderChapterPages(imageUrls) {
-  chapterImages.innerHTML = !imageUrls || imageUrls.length === 0 ? '<p>No images found for this chapter.</p>' : imageUrls.map(url => `<img src="${url}" loading="lazy">`).join('');
+  if (!imageUrls || imageUrls.length === 0) {
+    chapterImages.innerHTML = '<p>No images found for this chapter.</p>';
+    return;
+  }
+  chapterImages.innerHTML = '';
+  imageUrls.forEach(url => {
+    const img = document.createElement('img');
+    img.src = url;
+    img.loading = 'lazy';
+    img.style.display = 'block';
+    img.style.width = '100%';
+    img.onerror = () => { img.style.display = 'none'; };
+    chapterImages.appendChild(img);
+  });
 }
+
 document.addEventListener('DOMContentLoaded', () => {
   if (localStorage.getItem('hideOverlay') === 'true') {
     welcomeOverlay.classList.add('hidden');
